@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Table of Contents Settings</title>
+  <link rel="stylesheet" href="settings.css">
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>Table of Contents Settings</h1>
+  
+  <div class="setting-group">
+    <h2>Heading Levels</h2>
+    <div class="checkbox-group" id="heading-levels">
+      <label><input type="checkbox" name="h1" value="h1"> H1</label>
+      <label><input type="checkbox" name="h2" value="h2"> H2</label>
+      <label><input type="checkbox" name="h3" value="h3"> H3</label>
+      <label><input type="checkbox" name="h4" value="h4"> H4</label>
+      <label><input type="checkbox" name="h5" value="h5"> H5</label>
+      <label><input type="checkbox" name="h6" value="h6"> H6</label>
+    </div>
+  </div>
+  
+  <div class="setting-group">
+    <h2>Theme</h2>
+    <select id="theme-select">
+      <option value="light">Light</option>
+      <option value="dark">Dark</option>
+      <option value="system">System Default</option>
+    </select>
+  </div>
+  
+  <div class="setting-group">
+    <h2>Font Size</h2>
+    <input type="range" id="font-size" min="12" max="24" value="16">
+    <span id="font-size-value">16px</span>
+  </div>
+  
+  <div class="setting-group">
+    <h2>Domain Rules</h2>
+    <div id="domain-rules">
+      <div class="domain-rule">
+        <input type="text" placeholder="example.com" class="domain-input">
+        <select class="rule-action">
+          <option value="enable">Enable TOC</option>
+          <option value="disable">Disable TOC</option>
+        </select>
+        <button class="remove-rule">&times;</button>
+      </div>
+    </div>
+    <button id="add-rule">Add Rule</button>
+  </div>
+  
+  <button id="save-settings">Save Settings</button>
+  
+  <script src="settings.js"></script>
+</body>
+</html>
