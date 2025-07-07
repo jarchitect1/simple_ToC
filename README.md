@@ -42,6 +42,12 @@ This project is developed using modern AI-assisted development tools:
 - Domain Rules - Configure extension behavior for specific domains
 - ToC Font Size - Adjustable font size options for better readability
 
+## ☕ Give Some Supports & Encouragement
+
+<a href="https://coff.ee/jarchitect" target="_blank" rel="noopener noreferrer">
+  <img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" style="height: 50px !important; width: 180px !important;">
+</a>
+
 ---
 
 *Built with ❤️ using AI-assisted development*
