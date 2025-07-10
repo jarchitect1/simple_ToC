@@ -1,56 +1,163 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Table of Contents Settings</title>
   <link rel="stylesheet" href="settings.css">
-  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <h1>Table of Contents Settings</h1>
-  
-  <div class="setting-group">
-    <h2>Heading Levels</h2>
-    <div class="checkbox-group" id="heading-levels">
-      <label><input type="checkbox" name="h1" value="h1"> H1</label>
-      <label><input type="checkbox" name="h2" value="h2"> H2</label>
-      <label><input type="checkbox" name="h3" value="h3"> H3</label>
-      <label><input type="checkbox" name="h4" value="h4"> H4</label>
-      <label><input type="checkbox" name="h5" value="h5"> H5</label>
-      <label><input type="checkbox" name="h6" value="h6"> H6</label>
-    </div>
-  </div>
-  
-  <div class="setting-group">
-    <h2>Theme</h2>
-    <select id="theme-select">
-      <option value="light">Light</option>
-      <option value="dark">Dark</option>
-      <option value="system">System Default</option>
-    </select>
-  </div>
-  
-  <div class="setting-group">
-    <h2>Font Size</h2>
-    <input type="range" id="font-size" min="12" max="24" value="16">
-    <span id="font-size-value">16px</span>
-  </div>
-  
-  <div class="setting-group">
-    <h2>Domain Rules</h2>
-    <div id="domain-rules">
-      <div class="domain-rule">
-        <input type="text" placeholder="example.com" class="domain-input">
-        <select class="rule-action">
-          <option value="enable">Enable TOC</option>
-          <option value="disable">Disable TOC</option>
-        </select>
-        <button class="remove-rule">&times;</button>
+  <div class="container">
+    <header class="page-header">
+      <h1>Table of Contents Settings</h1>
+      <p class="page-description">Customize your ToC experience with these advanced options</p>
+    </header>
+    
+    <main class="settings-main">
+      <div class="settings-grid">
+        <!-- Heading Levels Section -->
+        <section class="setting-card">
+          <div class="setting-header">
+            <h2>📋 Heading Levels</h2>
+            <p class="setting-description">Choose which heading levels to include in the table of contents</p>
+          </div>
+          <div class="checkbox-grid" id="heading-levels">
+            <label class="checkbox-item">
+              <input type="checkbox" name="h1" value="h1">
+              <span class="checkmark"></span>
+              <span class="label-text">H1 - Main Titles</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="h2" value="h2">
+              <span class="checkmark"></span>
+              <span class="label-text">H2 - Sections</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="h3" value="h3">
+              <span class="checkmark"></span>
+              <span class="label-text">H3 - Subsections</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="h4" value="h4">
+              <span class="checkmark"></span>
+              <span class="label-text">H4 - Sub-subsections</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="h5" value="h5">
+              <span class="checkmark"></span>
+              <span class="label-text">H5 - Minor headings</span>
+            </label>
+            <label class="checkbox-item">
+              <input type="checkbox" name="h6" value="h6">
+              <span class="checkmark"></span>
+              <span class="label-text">H6 - Smallest headings</span>
+            </label>
+          </div>
+        </section>
+
+        <!-- Appearance Section -->
+        <section class="setting-card">
+          <div class="setting-header">
+            <h2>🎨 Appearance</h2>
+            <p class="setting-description">Customize the visual appearance of your ToC</p>
+          </div>
+          
+          <div class="setting-row">
+            <label for="theme-select" class="setting-label">Theme</label>
+            <select id="theme-select" class="select-input">
+              <option value="light">☀️ Light</option>
+              <option value="dark">🌙 Dark</option>
+              <option value="system">🖥️ System Default</option>
+            </select>
+          </div>
+          
+          <div class="setting-row">
+            <label for="font-size" class="setting-label">Font Size</label>
+            <div class="range-input-container">
+              <input type="range" id="font-size" min="12" max="24" value="16" class="range-input">
+              <span id="font-size-value" class="range-value">16px</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Behavior Section -->
+        <section class="setting-card">
+          <div class="setting-header">
+            <h2>⚙️ Behavior</h2>
+            <p class="setting-description">Configure how the ToC behaves</p>
+          </div>
+          
+          <div class="toggle-grid">
+            <label class="toggle-item">
+              <input type="checkbox" id="smooth-scroll" class="toggle-input">
+              <span class="toggle-slider"></span>
+              <div class="toggle-content">
+                <span class="toggle-title">Smooth Scrolling</span>
+                <span class="toggle-description">Enable smooth scrolling when clicking ToC links</span>
+              </div>
+            </label>
+            
+            <label class="toggle-item">
+              <input type="checkbox" id="show-numbers" class="toggle-input">
+              <span class="toggle-slider"></span>
+              <div class="toggle-content">
+                <span class="toggle-title">Show Numbers</span>
+                <span class="toggle-description">Display numbers before each heading</span>
+              </div>
+            </label>
+            
+            <label class="toggle-item">
+              <input type="checkbox" id="auto-collapse" class="toggle-input">
+              <span class="toggle-slider"></span>
+              <div class="toggle-content">
+                <span class="toggle-title">Auto Collapse</span>
+                <span class="toggle-description">Automatically collapse lower-level headings</span>
+              </div>
+            </label>
+          </div>
+        </section>
+
+        <!-- Domain Rules Section -->
+        <section class="setting-card full-width">
+          <div class="setting-header">
+            <h2>🌐 Domain Rules</h2>
+            <p class="setting-description">Configure ToC behavior for specific websites</p>
+          </div>
+          
+          <div class="domain-rules-container">
+            <div id="domain-rules" class="domain-rules-list">
+              <!-- Domain rules will be populated here -->
+            </div>
+            <button id="add-rule" class="add-rule-btn">
+              <span class="btn-icon">+</span>
+              Add Domain Rule
+            </button>
+          </div>
+        </section>
       </div>
+      
+      <!-- Action Buttons -->
+      <div class="action-buttons">
+        <button id="reset-settings" class="btn btn-secondary">
+          <span class="btn-icon">🔄</span>
+          Reset to Defaults
+        </button>
+        <button id="save-settings" class="btn btn-primary">
+          <span class="btn-icon">💾</span>
+          Save Settings
+        </button>
+      </div>
+    </main>
+    
+    <!-- Status Messages -->
+    <div id="status-message" class="status-message" style="display: none;">
+      <span class="status-icon"></span>
+      <span class="status-text"></span>
     </div>
-    <button id="add-rule">Add Rule</button>
   </div>
-  
-  <button id="save-settings">Save Settings</button>
   
   <script src="settings.js"></script>
 </body>

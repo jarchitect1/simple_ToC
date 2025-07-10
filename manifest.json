@@ -1,12 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Simple ToC",
-  "version": "0.1",
-  "description": "Generates a table of contents for any webpage.",
+  "version": "1.0.0",
+  "description": "Generates a table of contents for any webpage with advanced customization options.",
   "permissions": [
     "activeTab",
     "scripting",
     "storage"
+  ],
+  "host_permissions": [
+    "<all_urls>"
   ],
   "icons": {
     "16": "icons/icon16.png",
@@ -17,7 +20,7 @@
     "service_worker": "src/background/index.js"
   },
   "action": {
-    
+    "default_title": "Toggle Table of Contents",
     "default_icon": {
       "16": "icons/icon16.png",
       "48": "icons/icon48.png"
@@ -27,7 +30,14 @@
     {
       "matches": ["<all_urls>"],
       "js": ["src/content/index.js"],
-      "css": ["src/content/sidebar.css"]
+      "css": ["src/content/sidebar.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["src/settings/*"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

@@ -1,369 +1,489 @@
-// Content script for the Table of Contents extension.
-// This script is responsible for scanning the DOM, building the TOC, and injecting the sidebar.
+/**
+ * Content script for the Table of Contents extension
+ * Handles DOM scanning, ToC generation, and sidebar management
+ */
 
-console.log('TOC content script loaded');
-
-let sidebarVisible = false;
-let sidebar;
-let intersectionObserver;
-let mutationObserver;
-let isResizing = false;
-let startX, startWidth;
-let domainRules = [];
-let currentSettings = {
-  headingLevels: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-  theme: 'light',
-  fontSize: 16
-};
-let debounceTimer;
-
-// Simple debounce function
-function debounce(func, delay) {
-  clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(func, delay);
-}
-
-// Check if TOC should be enabled for current domain
-function isTocEnabled() {
-  const currentDomain = window.location.hostname;
-  console.log('Checking TOC enabled for domain:', currentDomain);
-  
-  // Check against domain rules
-  for (const rule of domainRules) {
-    // Skip empty domain rules
-    if (!rule.domain) continue;
+class ToCExtension {
+  constructor() {
+    this.sidebarVisible = false;
+    this.sidebar = null;
+    this.intersectionObserver = null;
+    this.mutationObserver = null;
+    this.resizeState = { isResizing: false, startX: 0, startWidth: 0 };
+    this.domainRules = [];
+    this.debounceTimer = null;
     
-    if (currentDomain.includes(rule.domain) ||
-        rule.domain.includes(currentDomain)) {
-      console.log('Found domain rule:', rule);
-      return rule.action === 'enable';
+    this.defaultSettings = {
+      headingLevels: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+      theme: 'light',
+      fontSize: 16,
+      autoCollapse: false,
+      showNumbers: false,
+      smoothScroll: true
+    };
+    
+    this.currentSettings = { ...this.defaultSettings };
+    
+    this.init();
+  }
+
+  async init() {
+    console.log('TOC extension initializing...');
+    await this.loadSettings();
+    this.setupMessageListener();
+    this.setupStorageListener();
+    console.log('TOC extension initialized');
+  }
+
+  // Settings Management
+  async loadSettings() {
+    try {
+      const settings = await chrome.storage.local.get(this.defaultSettings);
+      Object.assign(this.currentSettings, settings);
+      
+      const domainData = await chrome.storage.local.get({ domainRules: [] });
+      this.domainRules = domainData.domainRules;
+      
+      console.log('Settings loaded:', this.currentSettings);
+    } catch (error) {
+      console.error('Failed to load settings:', error);
     }
   }
-  
-  // Default to enabled if no matching rules
-  return true;
-}
 
-// Update settings from storage
-function updateSettings() {
-  chrome.storage.local.get({
-    headingLevels: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-    theme: 'light',
-    fontSize: 16,
-    domainRules: []
-  }, (settings) => {
-    if (settings.headingLevels) currentSettings.headingLevels = settings.headingLevels;
-    if (settings.theme) currentSettings.theme = settings.theme;
-    if (settings.fontSize) currentSettings.fontSize = settings.fontSize;
-    if (settings.domainRules) domainRules = settings.domainRules;
-    
-    console.log('Settings updated:', currentSettings);
-    console.log('Domain rules:', domainRules);
-    
-    // Update UI if sidebar exists
-    if (sidebar) {
-      applyTheme();
-      applyFontSize();
-      updateToc();
-    }
-  });
-}
-
-// Update domain rules from storage
-function updateDomainRules() {
-  chrome.storage.sync.get('domainRules', (data) => {
-    domainRules = data.domainRules || [];
-    console.log('Domain rules updated:', domainRules);
-  });
-}
-
-function generateToc() {
-  // Create selector from enabled heading levels
-  const selector = currentSettings.headingLevels.join(', ');
-  console.log('Looking for headings with selector:', selector);
-  const headers = document.querySelectorAll(selector);
-  console.log('Found headers:', headers.length);
-  
-  if (headers.length === 0) {
-    return '<div class="no-headings">No headings found on this page</div>';
-  }
-  
-  let tocHtml = '<ul>';
-  headers.forEach((header, index) => {
-    const id = header.id || `toc-header-${index}`;
-    header.id = id;
-    const level = parseInt(header.tagName.substring(1));
-    const indent = '  '.repeat(level - 1);
-    tocHtml += `<li class="toc-level-${level}" style="margin-left: ${(level - 1) * 20}px;"><a href="#${id}" data-target-id="${id}" style="${level === 1 ? 'color: #007bff;' : ''}">${header.textContent}</a></li>`;
-  });
-  tocHtml += '</ul>';
-  return tocHtml;
-}
-
-function generateMarkdownToc() {
-  // Create selector from enabled heading levels
-  const selector = currentSettings.headingLevels.join(', ');
-  const headers = document.querySelectorAll(selector);
-  
-  if (headers.length === 0) {
-    return '# No headings found on this page';
-  }
-  
-  let markdown = '';
-  let lastLevel = 0;
-  
-  headers.forEach(header => {
-    const level = parseInt(header.tagName.substring(1));
-    const text = header.textContent;
-    const id = header.id;
-    
-    // Add indentation
-    const indent = '  '.repeat(level - 1);
-    markdown += `${indent}- [${text}](#${id})\n`;
-    lastLevel = level;
-  });
-  
-  return markdown;
-}
-
-function updateToc() {
-  const tocContent = document.getElementById('toc-content');
-  if (tocContent) {
-    tocContent.innerHTML = generateToc();
-    console.log('TOC updated');
-  }
-}
-
-function applyTheme() {
-  if (currentSettings.theme === 'dark') {
-    sidebar.classList.add('dark-theme');
-    document.getElementById('toc-theme-toggle').textContent = '☀️';
-  } else {
-    sidebar.classList.remove('dark-theme');
-    document.getElementById('toc-theme-toggle').textContent = '🌙';
-  }
-}
-
-function applyFontSize() {
-  const tocContent = document.getElementById('toc-content');
-  if (tocContent) {
-    tocContent.style.fontSize = `${currentSettings.fontSize}px`;
-  }
-}
-
-function filterToc(searchTerm) {
-  const links = document.querySelectorAll('#toc-content a');
-  links.forEach(link => {
-    const text = link.textContent.toLowerCase();
-    const parentLi = link.parentElement;
-    if (text.includes(searchTerm.toLowerCase())) {
-      parentLi.style.display = '';
-    } else {
-      parentLi.style.display = 'none';
-    }
-  });
-}
-
-function createSidebar() {
-  console.log('Creating sidebar');
-  
-  // Remove existing sidebar if it exists
-  const existingSidebar = document.getElementById('toc-sidebar');
-  if (existingSidebar) {
-    existingSidebar.remove();
-  }
-  
-  sidebar = document.createElement('div');
-  sidebar.id = 'toc-sidebar';
-  sidebar.innerHTML = `
-    <div class="sidebar-header">
-      <h1>Table of Contents</h1>
-      <div>
-        <button id="toc-theme-toggle" title="Toggle Theme">🌙</button>
-        <button id="toc-settings" title="Settings">⚙️</button>
-        <button id="toc-copy-markdown" title="Copy as Markdown">📋</button>
-        <button id="toc-close" title="Close Sidebar">×</button>
-      </div>
-    </div>
-    <input type="text" id="toc-search" placeholder="Search...">
-    <div id="toc-content"></div>
-    <div class="resize-handle"></div>
-  `;
-  
-  document.body.appendChild(sidebar);
-  console.log('Sidebar added to DOM');
-  
-  // Apply initial settings
-  applyTheme();
-  applyFontSize();
-  updateToc();
-
-  document.getElementById('toc-search').addEventListener('input', (e) => {
-    filterToc(e.target.value);
-  });
-
-  document.getElementById('toc-close').addEventListener('click', () => {
-    sidebarVisible = false;
-    sidebar.style.display = 'none';
-  });
-
-  document.getElementById('toc-theme-toggle').addEventListener('click', () => {
-    currentSettings.theme = currentSettings.theme === 'light' ? 'dark' : 'light';
-    applyTheme();
-    // Save theme preference
-    chrome.storage.sync.set({ theme: currentSettings.theme });
-  });
-
-  document.getElementById('toc-settings').addEventListener('click', () => {
-    chrome.runtime.sendMessage({ action: 'openSettings' });
-  });
-
-  // Add copy as markdown functionality
-  document.getElementById('toc-copy-markdown').addEventListener('click', () => {
-    const markdown = generateMarkdownToc();
-    navigator.clipboard.writeText(markdown).then(() => {
-      const button = document.getElementById('toc-copy-markdown');
-      const originalText = button.textContent;
-      button.textContent = '✓ Copied!';
-      setTimeout(() => {
-        button.textContent = originalText;
-      }, 2000);
-    });
-  });
-
-  const tocContent = document.getElementById('toc-content');
-  tocContent.addEventListener('click', (e) => {
-    if (e.target.tagName === 'A') {
-      e.preventDefault();
-      const targetId = e.target.getAttribute('data-target-id');
-      const targetElement = document.getElementById(targetId);
-      if (targetElement) {
-        // Use scrollIntoView with a smooth behavior
-        targetElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-        
-      }
-    }
-  });
-
-  // Add resize functionality
-  const resizeHandle = sidebar.querySelector('.resize-handle');
-  resizeHandle.addEventListener('mousedown', (e) => {
-    isResizing = true;
-    startX = e.clientX;
-    startWidth = parseInt(document.defaultView.getComputedStyle(sidebar).width, 10);
-    e.preventDefault();
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!isResizing) return;
-    const width = startWidth + (startX - e.clientX);
-    sidebar.style.width = `${width}px`;
-  });
-
-  document.addEventListener('mouseup', () => {
-    isResizing = false;
-  });
-
-  setupObservers();
-}
-
-function setupObservers() {
-  const selector = currentSettings.headingLevels.join(', ');
-  const headers = document.querySelectorAll(selector);
-  
-  // Disconnect previous intersection observer if it exists
-  if (intersectionObserver) {
-    intersectionObserver.disconnect();
-  }
-
-  intersectionObserver = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      const id = entry.target.id;
-      const link = document.querySelector(`#toc-content a[data-target-id="${id}"]`);
-      if (link) {
-        if (entry.isIntersecting) {
-          link.classList.add('active');
-        } else {
-          link.classList.remove('active');
+  setupStorageListener() {
+    chrome.storage.onChanged.addListener((changes) => {
+      let shouldUpdate = false;
+      
+      Object.keys(changes).forEach(key => {
+        if (key in this.currentSettings) {
+          this.currentSettings[key] = changes[key].newValue;
+          shouldUpdate = true;
+        } else if (key === 'domainRules') {
+          this.domainRules = changes[key].newValue || [];
         }
+      });
+      
+      if (shouldUpdate && this.sidebar) {
+        this.updateSidebarDisplay();
       }
     });
-  }, { rootMargin: '0px 0px 20% 0px' });
-
-  headers.forEach(header => {
-    intersectionObserver.observe(header);
-  });
-  
-  // Disconnect previous mutation observer if it exists
-  if (mutationObserver) {
-    mutationObserver.disconnect();
   }
 
-  mutationObserver = new MutationObserver((mutations) => {
-    // Debounce TOC updates to prevent excessive regenerations
-    debounce(() => {
-      updateToc();
-      setupObservers(); // Re-setup observers as headers might have changed
-    }, 300);
-  });
+  setupMessageListener() {
+    chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+      if (request.action === 'toggleSidebar') {
+        this.toggleSidebar();
+        sendResponse({ success: true });
+      }
+    });
+  }
 
-  mutationObserver.observe(document.body, {
-    childList: true,
-    subtree: true
-  });
+  // Domain Rules
+  isTocEnabled() {
+    const currentDomain = window.location.hostname;
+    
+    for (const rule of this.domainRules) {
+      if (!rule.domain) continue;
+      
+      if (currentDomain.includes(rule.domain) || rule.domain.includes(currentDomain)) {
+        return rule.action === 'enable';
+      }
+    }
+    
+    return true; // Default to enabled
+  }
+
+  // Utility Functions
+  debounce(func, delay) {
+    clearTimeout(this.debounceTimer);
+    this.debounceTimer = setTimeout(func, delay);
+  }
+
+  // ToC Generation
+  generateToc() {
+    const selector = this.currentSettings.headingLevels.join(', ');
+    const headers = document.querySelectorAll(selector);
+    
+    if (headers.length === 0) {
+      return this.createNoHeadersMessage();
+    }
+    
+    return this.buildTocHtml(headers);
+  }
+
+  createNoHeadersMessage() {
+    return `
+      <div class="no-headings">
+        <div class="no-headings-icon">📄</div>
+        <div class="no-headings-text">No headings found on this page</div>
+        <div class="no-headings-hint">Try adjusting heading levels in settings</div>
+      </div>
+    `;
+  }
+
+  buildTocHtml(headers) {
+    let tocHtml = '<ul class="toc-list">';
+    let currentLevel = 1;
+    let counter = 1;
+    
+    headers.forEach((header, index) => {
+      const id = header.id || `toc-header-${index}`;
+      header.id = id;
+      
+      const level = parseInt(header.tagName.substring(1));
+      const text = this.sanitizeText(header.textContent);
+      const indent = Math.max(0, (level - 1) * 20);
+      
+      const numberPrefix = this.currentSettings.showNumbers ? `${counter++}. ` : '';
+      const levelClass = `toc-level-${level}`;
+      
+      tocHtml += `
+        <li class="${levelClass}" style="margin-left: ${indent}px;">
+          <a href="#${id}" 
+             data-target-id="${id}" 
+             data-level="${level}"
+             title="${text}">
+            ${numberPrefix}${text}
+          </a>
+        </li>
+      `;
+    });
+    
+    tocHtml += '</ul>';
+    return tocHtml;
+  }
+
+  sanitizeText(text) {
+    return text.trim().replace(/\s+/g, ' ');
+  }
+
+  generateMarkdownToc() {
+    const selector = this.currentSettings.headingLevels.join(', ');
+    const headers = document.querySelectorAll(selector);
+    
+    if (headers.length === 0) {
+      return '# No headings found on this page';
+    }
+    
+    let markdown = '# Table of Contents\n\n';
+    
+    headers.forEach(header => {
+      const level = parseInt(header.tagName.substring(1));
+      const text = this.sanitizeText(header.textContent);
+      const id = header.id;
+      const indent = '  '.repeat(level - 1);
+      
+      markdown += `${indent}- [${text}](#${id})\n`;
+    });
+    
+    return markdown;
+  }
+
+  // Sidebar Management
+  createSidebar() {
+    this.removeSidebar();
+    
+    this.sidebar = document.createElement('div');
+    this.sidebar.id = 'toc-sidebar';
+    this.sidebar.innerHTML = this.getSidebarHtml();
+    
+    document.body.appendChild(this.sidebar);
+    
+    this.setupSidebarEventListeners();
+    this.updateSidebarDisplay();
+    this.setupObservers();
+    
+    console.log('Sidebar created and configured');
+  }
+
+  getSidebarHtml() {
+    return `
+      <div class="sidebar-header">
+        <h1>Table of Contents</h1>
+        <div class="sidebar-controls">
+          <button id="toc-theme-toggle" title="Toggle Theme" class="control-btn">🌙</button>
+          <button id="toc-settings" title="Settings" class="control-btn">⚙️</button>
+          <button id="toc-copy-markdown" title="Copy as Markdown" class="control-btn">📋</button>
+          <button id="toc-close" title="Close" class="control-btn close-btn">×</button>
+        </div>
+      </div>
+      <div class="sidebar-search">
+        <input type="text" id="toc-search" placeholder="Search headings..." />
+        <div class="search-icon">🔍</div>
+      </div>
+      <div id="toc-content" class="toc-content"></div>
+      <div class="resize-handle" title="Drag to resize"></div>
+    `;
+  }
+
+  setupSidebarEventListeners() {
+    // Search functionality
+    const searchInput = document.getElementById('toc-search');
+    searchInput.addEventListener('input', (e) => this.filterToc(e.target.value));
+    
+    // Control buttons
+    document.getElementById('toc-close').addEventListener('click', () => this.hideSidebar());
+    document.getElementById('toc-theme-toggle').addEventListener('click', () => this.toggleTheme());
+    document.getElementById('toc-settings').addEventListener('click', () => this.openSettings());
+    document.getElementById('toc-copy-markdown').addEventListener('click', () => this.copyMarkdown());
+    
+    // ToC navigation
+    const tocContent = document.getElementById('toc-content');
+    tocContent.addEventListener('click', (e) => this.handleTocClick(e));
+    
+    // Resize functionality
+    this.setupResizeHandlers();
+  }
+
+  setupResizeHandlers() {
+    const resizeHandle = this.sidebar.querySelector('.resize-handle');
+    
+    resizeHandle.addEventListener('mousedown', (e) => {
+      this.resizeState.isResizing = true;
+      this.resizeState.startX = e.clientX;
+      this.resizeState.startWidth = parseInt(getComputedStyle(this.sidebar).width, 10);
+      e.preventDefault();
+      document.body.style.userSelect = 'none';
+    });
+
+    document.addEventListener('mousemove', (e) => {
+      if (!this.resizeState.isResizing) return;
+      
+      const width = Math.max(250, Math.min(600, 
+        this.resizeState.startWidth + (this.resizeState.startX - e.clientX)
+      ));
+      this.sidebar.style.width = `${width}px`;
+    });
+
+    document.addEventListener('mouseup', () => {
+      if (this.resizeState.isResizing) {
+        this.resizeState.isResizing = false;
+        document.body.style.userSelect = '';
+      }
+    });
+  }
+
+  updateSidebarDisplay() {
+    if (!this.sidebar) return;
+    
+    this.applyTheme();
+    this.applyFontSize();
+    this.updateTocContent();
+  }
+
+  applyTheme() {
+    const themeToggle = document.getElementById('toc-theme-toggle');
+    
+    if (this.currentSettings.theme === 'dark') {
+      this.sidebar.classList.add('dark-theme');
+      themeToggle.textContent = '☀️';
+    } else {
+      this.sidebar.classList.remove('dark-theme');
+      themeToggle.textContent = '🌙';
+    }
+  }
+
+  applyFontSize() {
+    const tocContent = document.getElementById('toc-content');
+    if (tocContent) {
+      tocContent.style.fontSize = `${this.currentSettings.fontSize}px`;
+    }
+  }
+
+  updateTocContent() {
+    const tocContent = document.getElementById('toc-content');
+    if (tocContent) {
+      tocContent.innerHTML = this.generateToc();
+    }
+  }
+
+  // Event Handlers
+  handleTocClick(e) {
+    if (e.target.tagName !== 'A') return;
+    
+    e.preventDefault();
+    const targetId = e.target.getAttribute('data-target-id');
+    const targetElement = document.getElementById(targetId);
+    
+    if (targetElement) {
+      this.scrollToElement(targetElement);
+    }
+  }
+
+  scrollToElement(element) {
+    const behavior = this.currentSettings.smoothScroll ? 'smooth' : 'auto';
+    element.scrollIntoView({ behavior, block: 'start' });
+  }
+
+  filterToc(searchTerm) {
+    const links = document.querySelectorAll('#toc-content a');
+    const term = searchTerm.toLowerCase();
+    
+    links.forEach(link => {
+      const text = link.textContent.toLowerCase();
+      const parentLi = link.parentElement;
+      parentLi.style.display = text.includes(term) ? '' : 'none';
+    });
+  }
+
+  async toggleTheme() {
+    this.currentSettings.theme = this.currentSettings.theme === 'light' ? 'dark' : 'light';
+    this.applyTheme();
+    
+    try {
+      await chrome.storage.local.set({ theme: this.currentSettings.theme });
+    } catch (error) {
+      console.error('Failed to save theme:', error);
+    }
+  }
+
+  openSettings() {
+    chrome.runtime.sendMessage({ action: 'openSettings' });
+  }
+
+  async copyMarkdown() {
+    const markdown = this.generateMarkdownToc();
+    
+    try {
+      await navigator.clipboard.writeText(markdown);
+      this.showCopyFeedback();
+    } catch (error) {
+      console.error('Failed to copy markdown:', error);
+    }
+  }
+
+  showCopyFeedback() {
+    const button = document.getElementById('toc-copy-markdown');
+    const originalText = button.textContent;
+    
+    button.textContent = '✓';
+    button.style.color = '#28a745';
+    
+    setTimeout(() => {
+      button.textContent = originalText;
+      button.style.color = '';
+    }, 1500);
+  }
+
+  // Observers
+  setupObservers() {
+    this.setupIntersectionObserver();
+    this.setupMutationObserver();
+  }
+
+  setupIntersectionObserver() {
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+    }
+
+    const selector = this.currentSettings.headingLevels.join(', ');
+    const headers = document.querySelectorAll(selector);
+    
+    this.intersectionObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const id = entry.target.id;
+        const link = document.querySelector(`#toc-content a[data-target-id="${id}"]`);
+        
+        if (link) {
+          link.classList.toggle('active', entry.isIntersecting);
+        }
+      });
+    }, { 
+      rootMargin: '-10% 0px -80% 0px',
+      threshold: 0.1
+    });
+
+    headers.forEach(header => {
+      this.intersectionObserver.observe(header);
+    });
+  }
+
+  setupMutationObserver() {
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+
+    this.mutationObserver = new MutationObserver(() => {
+      this.debounce(() => {
+        this.updateTocContent();
+        this.setupIntersectionObserver();
+      }, 300);
+    });
+
+    this.mutationObserver.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['id', 'class']
+    });
+  }
+
+  // Public Methods
+  toggleSidebar() {
+    if (!this.isTocEnabled()) {
+      console.log('ToC disabled for this domain');
+      return;
+    }
+    
+    if (!this.sidebar) {
+      this.createSidebar();
+    }
+    
+    this.sidebarVisible = !this.sidebarVisible;
+    this.sidebar.style.display = this.sidebarVisible ? 'block' : 'none';
+    
+    console.log(`Sidebar ${this.sidebarVisible ? 'shown' : 'hidden'}`);
+  }
+
+  showSidebar() {
+    if (!this.sidebar) {
+      this.createSidebar();
+    }
+    
+    this.sidebarVisible = true;
+    this.sidebar.style.display = 'block';
+  }
+
+  hideSidebar() {
+    this.sidebarVisible = false;
+    if (this.sidebar) {
+      this.sidebar.style.display = 'none';
+    }
+  }
+
+  removeSidebar() {
+    const existingSidebar = document.getElementById('toc-sidebar');
+    if (existingSidebar) {
+      existingSidebar.remove();
+    }
+    
+    if (this.intersectionObserver) {
+      this.intersectionObserver.disconnect();
+    }
+    
+    if (this.mutationObserver) {
+      this.mutationObserver.disconnect();
+    }
+  }
+
+  destroy() {
+    this.removeSidebar();
+    clearTimeout(this.debounceTimer);
+  }
 }
 
-function toggleSidebar() {
-  console.log('Toggle sidebar called');
-  
-  // Check if TOC is enabled for this domain
-  if (!isTocEnabled()) {
-    console.log('TOC disabled for this domain');
-    return;
+// Initialize the extension when DOM is ready
+function initializeExtension() {
+  if (window.tocExtension) {
+    window.tocExtension.destroy();
   }
   
-  if (!sidebar) {
-    createSidebar();
-  }
-  
-  sidebarVisible = !sidebarVisible;
-  sidebar.style.display = sidebarVisible ? 'block' : 'none';
-  console.log(`Sidebar visibility: ${sidebarVisible ? 'visible' : 'hidden'}`);
+  window.tocExtension = new ToCExtension();
 }
 
 // Wait for DOM to be ready
-function init() {
-  console.log('Initializing TOC extension');
-  updateSettings();
-  updateDomainRules();
-  
-  // Check if page already has headings
-  const headers = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
-  console.log('Initial headers found:', headers.length);
-}
-
-// Initialize when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', initializeExtension);
 } else {
-  init();
+  initializeExtension();
 }
-
-// Listen for storage changes
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.headingLevels || changes.theme || changes.fontSize) {
-    updateSettings();
-  }
-  if (changes.domainRules) {
-    domainRules = changes.domainRules.newValue || [];
-  }
-});
-
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('Received message in content script:', request);
-  if (request.action === 'toggleSidebar') {
-    toggleSidebar();
-    sendResponse({ success: true });
-  }
-});
